@@ -249,7 +249,7 @@ public class WeightedThreadPool implements ExecutorService {
         public SchedulerWorker() {
             setDaemon(true);
             periodicCheckMilis = 17;
-            activeThreads = new CopyOnWriteArrayList<>();
+            activeThreads = Collections.synchronizedList(new ArrayList<>());
             isRunning = new AtomicBoolean(false);
         }
 
