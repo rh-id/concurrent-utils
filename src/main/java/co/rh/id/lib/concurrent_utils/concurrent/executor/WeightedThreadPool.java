@@ -257,6 +257,7 @@ public class WeightedThreadPool implements ExecutorService {
         private synchronized void workerFinish(Worker worker) {
             if (worker.workerTaskQueue.isEmpty()) {
                 activeThreads.remove(worker);
+                Collections.sort(activeThreads);
             }
         }
 
@@ -265,6 +266,16 @@ public class WeightedThreadPool implements ExecutorService {
             worker.add(weightedFutureTask);
             worker.start();
             activeThreads.add(worker);
+            Collections.sort(activeThreads);
+        }
+
+        private synchronized void addWorker(List<WeightedFutureTask> weightedFutureTasks) {
+            for (WeightedFutureTask weightedFutureTask : weightedFutureTasks) {
+                Worker worker = new Worker();
+                worker.add(weightedFutureTask);
+                worker.start();
+                activeThreads.add(worker);
+            }
             Collections.sort(activeThreads);
         }
 
@@ -308,11 +319,12 @@ public class WeightedThreadPool implements ExecutorService {
                 }
                 // check deadlock and tasks that waits too long
                 if (!activeThreads.isEmpty()) {
-                    Worker lastWorker = activeThreads.get(activeThreads.size() - 1);
-                    List<WeightedFutureTask> taskList = lastWorker.stealTasks(periodicCheckMilis);
-                    // assigning new thread to break deadlock and to let it execute immediately
-                    for (WeightedFutureTask weightedFutureTask : taskList) {
-                        addWorker(weightedFutureTask);
+                    for (Worker worker : activeThreads) {
+                        List<WeightedFutureTask> taskList = worker.stealTasks(periodicCheckMilis);
+                        // assigning new thread to break deadlock and to let it execute immediately
+                        if (!taskList.isEmpty()) {
+                            addWorker(taskList);
+                        }
                     }
                 }
             }
