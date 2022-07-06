@@ -319,7 +319,8 @@ public class WeightedThreadPool implements ExecutorService {
                 }
                 // check deadlock and tasks that waits too long
                 if (!activeThreads.isEmpty()) {
-                    for (Worker worker : activeThreads) {
+                    List<Worker> threadList = new ArrayList<>(activeThreads);
+                    for (Worker worker : threadList) {
                         List<WeightedFutureTask> taskList = worker.stealTasks(periodicCheckMilis);
                         // assigning new thread to break deadlock and to let it execute immediately
                         if (!taskList.isEmpty()) {
