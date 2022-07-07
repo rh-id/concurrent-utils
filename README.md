@@ -1,4 +1,4 @@
-# rx-utils
+# concurrent-utils
 
 ![Languages](https://img.shields.io/github/languages/top/rh-id/concurrent-utils)
 ![JitPack](https://img.shields.io/jitpack/v/github/rh-id/concurrent-utils)
@@ -20,7 +20,7 @@ allprojects {
 Include this to your module dependency (module build.gradle)
 ```
 dependencies {
-    implementation 'com.github.rh-id:rx-utils:v0.0.1'
+    implementation 'com.github.rh-id:concurrent-utils:v0.0.1'
 }
 ```
 
