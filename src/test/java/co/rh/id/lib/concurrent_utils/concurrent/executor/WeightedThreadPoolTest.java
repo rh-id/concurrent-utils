@@ -1,6 +1,7 @@
 package co.rh.id.lib.concurrent_utils.concurrent.executor;
 
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -19,6 +20,12 @@ public class WeightedThreadPoolTest {
     @BeforeEach
     void setup() {
         weightedThreadPool = new WeightedThreadPool();
+    }
+
+    @AfterEach
+    void dispose() throws InterruptedException {
+        weightedThreadPool.shutdown();
+        weightedThreadPool.awaitTermination(1, TimeUnit.SECONDS);
     }
 
     @Test
@@ -66,9 +73,6 @@ public class WeightedThreadPoolTest {
         Mockito.verify(mockCallable2, Mockito.times(1)).call();
         Mockito.verify(mockCallable3, Mockito.times(1)).call();
         Mockito.verify(mockCallable4, Mockito.times(1)).call();
-
-        weightedThreadPool.shutdown();
-        weightedThreadPool.awaitTermination(1, TimeUnit.SECONDS);
     }
 
     @Test
@@ -84,8 +88,5 @@ public class WeightedThreadPoolTest {
         Mockito.verify(mockCallable2, Mockito.atMost(1)).call();
         Mockito.verify(mockCallable3, Mockito.atMost(1)).call();
         Mockito.verify(mockCallable4, Mockito.atMost(1)).call();
-
-        weightedThreadPool.shutdown();
-        weightedThreadPool.awaitTermination(1, TimeUnit.SECONDS);
     }
 }
