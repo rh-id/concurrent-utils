@@ -47,24 +47,8 @@ public class WeightedThreadPool implements ExecutorService {
         this.threadTimeoutMillis = threadTimeoutMillis;
     }
 
-    /**
-     * Submit weighted task to this thread pool to be executed
-     */
-    public <T> WeightedFutureTask<T> submit(Callable<T> callable, int weight) {
-        throwIfShutdown();
-        WeightedFutureTask<T> weightedFutureTask = new WeightedFutureTask<>(callable, weight);
-        taskQueue.add(weightedFutureTask);
-        return weightedFutureTask;
-    }
-
-    /**
-     * Submit weighted task to this thread pool to be executed
-     */
-    public <T> WeightedFutureTask<T> submit(Runnable runnable, T t, int weight) {
-        throwIfShutdown();
-        WeightedFutureTask<T> weightedFutureTask = new WeightedFutureTask<>(runnable, t, weight);
-        taskQueue.add(weightedFutureTask);
-        return weightedFutureTask;
+    public int getActiveThreadCount() {
+        return schedulerWorker.activeThreads.size();
     }
 
     @Override
@@ -131,6 +115,33 @@ public class WeightedThreadPool implements ExecutorService {
     public WeightedFutureTask<?> submit(Runnable runnable) {
         throwIfShutdown();
         WeightedFutureTask<?> weightedFutureTask = new WeightedFutureTask<>(runnable, null);
+        taskQueue.add(weightedFutureTask);
+        return weightedFutureTask;
+    }
+
+    /**
+     * Submit weighted task to this thread pool to be executed
+     */
+    public <T> WeightedFutureTask<T> submit(int weight, Callable<T> callable) {
+        throwIfShutdown();
+        WeightedFutureTask<T> weightedFutureTask = new WeightedFutureTask<>(callable, weight);
+        taskQueue.add(weightedFutureTask);
+        return weightedFutureTask;
+    }
+
+    /**
+     * Submit weighted task to this thread pool to be executed
+     */
+    public <T> WeightedFutureTask<T> submit(int weight, Runnable runnable, T t) {
+        throwIfShutdown();
+        WeightedFutureTask<T> weightedFutureTask = new WeightedFutureTask<>(runnable, t, weight);
+        taskQueue.add(weightedFutureTask);
+        return weightedFutureTask;
+    }
+
+    public WeightedFutureTask<?> submit(int weight, Runnable runnable) {
+        throwIfShutdown();
+        WeightedFutureTask<?> weightedFutureTask = new WeightedFutureTask<>(runnable, null, weight);
         taskQueue.add(weightedFutureTask);
         return weightedFutureTask;
     }
@@ -211,7 +222,7 @@ public class WeightedThreadPool implements ExecutorService {
         taskQueue.add(weightedFutureTask);
     }
 
-    public void execute(Runnable runnable, int weight) {
+    public void execute(int weight, Runnable runnable) {
         throwIfShutdown();
         WeightedFutureTask<?> weightedFutureTask = new WeightedFutureTask<>(runnable, null, weight);
         taskQueue.add(weightedFutureTask);
@@ -509,6 +520,185 @@ public class WeightedThreadPool implements ExecutorService {
                     workerTaskQueue.clear();
                 }
             }
+        }
+    }
+
+    /**
+     * Wrap existing WeightedThreadPool into executorService that delegate the execution of task into the WeightedThreadPool with defined minWeight or maxWeight.
+     * The whether a task will be executed with min or max weight depends on the thread count of the WeightedThreadPool instance.
+     * If WeightedThreadPool instance have active thread count that is higher than threadCount param then min weight will be used otherwise max weight.
+     *
+     * @param weightedThreadPool instance to delegate tasks to
+     * @param minWeight          weight amount to be executed for any ExecutorService API task submission when threadCount less than instance
+     * @param maxWeight          weight amount to be executed for any ExecutorService API task submission when threadCount more than instance
+     * @param threadCount        thread count threshold to be used
+     * @return wrapped ExecutorService instance that execute tasks based on defined weight
+     */
+    public static ExecutorService wrap(WeightedThreadPool weightedThreadPool, int minWeight, int maxWeight, int threadCount) {
+        return new DelegateExecutorService(weightedThreadPool, minWeight, maxWeight, threadCount);
+    }
+
+    /**
+     * Same as {@link #wrap(WeightedThreadPool, int, int, int)}
+     * The difference is that if ExecutorService instance is not instance of WeightedThreadPool,
+     * then this method will not wrap the instance but return the same ExecutorService instance
+     */
+    public static ExecutorService wrap(ExecutorService executorService, int minWeight, int maxWeight, int threadCount) {
+        if (executorService instanceof WeightedThreadPool) {
+            return wrap((WeightedThreadPool) executorService, minWeight, maxWeight, threadCount);
+        }
+        return executorService;
+    }
+
+    /**
+     * Wrap existing WeightedThreadPool into executorService that delegate the execution of task into the WeightedThreadPool with defined weight
+     *
+     * @param weightedThreadPool instance to delegate tasks to
+     * @param weight             weight amount to be executed for any ExecutorService API task submission
+     * @return wrapped ExecutorService instance that execute tasks based on defined weight
+     */
+    public static ExecutorService wrap(WeightedThreadPool weightedThreadPool, int weight) {
+        return new DelegateExecutorService(weightedThreadPool, weight);
+    }
+
+    /**
+     * Same as {@link #wrap(WeightedThreadPool, int)}
+     * The difference is that if ExecutorService instance is not instance of WeightedThreadPool,
+     * then this method will not wrap the instance but return the same ExecutorService instance
+     */
+    public static ExecutorService wrap(ExecutorService executorService, int weight) {
+        if (executorService instanceof WeightedThreadPool) {
+            return wrap((WeightedThreadPool) executorService, weight);
+        }
+        return executorService;
+    }
+
+    /**
+     * Same as {@link #wrap(WeightedThreadPool, int)}
+     * With weight value equals to WeightedThreadPool.getMaxWeight()
+     */
+    public static ExecutorService wrapMaxWeight(WeightedThreadPool weightedThreadPool) {
+        return wrap(weightedThreadPool, weightedThreadPool.getMaxWeight());
+    }
+
+    /**
+     * Same as {@link #wrapMaxWeight(WeightedThreadPool)}
+     * The difference is that if ExecutorService instance is not instance of WeightedThreadPool,
+     * then this method will not wrap the instance but return the same ExecutorService instance
+     */
+    public static ExecutorService wrapMaxWeight(ExecutorService executorService) {
+        if (executorService instanceof WeightedThreadPool) {
+            return wrapMaxWeight((WeightedThreadPool) executorService);
+        }
+        return executorService;
+    }
+
+    private static class DelegateExecutorService implements ExecutorService {
+
+        private WeightedThreadPool weightedThreadPool;
+        private int minWeight;
+        private int maxWeight;
+        private int threadCount;
+
+        public DelegateExecutorService(WeightedThreadPool weightedThreadPool, int weight) {
+            this(weightedThreadPool, weight, weight, 0);
+        }
+
+        public DelegateExecutorService(WeightedThreadPool weightedThreadPool, int minWeight, int maxWeight, int threadCount) {
+            this.weightedThreadPool = weightedThreadPool;
+            this.minWeight = minWeight;
+            this.maxWeight = maxWeight;
+            this.threadCount = threadCount;
+        }
+
+        @Override
+        public void shutdown() {
+            weightedThreadPool.shutdown();
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            return weightedThreadPool.shutdownNow();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return weightedThreadPool.isShutdown();
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return weightedThreadPool.isTerminated();
+        }
+
+        @Override
+        public boolean awaitTermination(long l, TimeUnit timeUnit) throws InterruptedException {
+            return weightedThreadPool.awaitTermination(l, timeUnit);
+        }
+
+        @Override
+        public <T> Future<T> submit(Callable<T> callable) {
+            if (threadCount > weightedThreadPool.getActiveThreadCount()) {
+                return weightedThreadPool.submit(maxWeight, callable);
+            }
+            return weightedThreadPool.submit(minWeight, callable);
+        }
+
+        @Override
+        public <T> Future<T> submit(Runnable runnable, T t) {
+            if (threadCount > weightedThreadPool.getActiveThreadCount()) {
+                return weightedThreadPool.submit(maxWeight, runnable, t);
+            }
+            return weightedThreadPool.submit(minWeight, runnable, t);
+        }
+
+        @Override
+        public Future<?> submit(Runnable runnable) {
+            if (threadCount > weightedThreadPool.getActiveThreadCount()) {
+                return weightedThreadPool.submit(maxWeight, runnable);
+            }
+            return weightedThreadPool.submit(minWeight, runnable);
+        }
+
+        @Override
+        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> collection) throws InterruptedException {
+            if (threadCount > weightedThreadPool.getActiveThreadCount()) {
+                return weightedThreadPool.invokeAll(maxWeight, collection);
+            }
+            return weightedThreadPool.invokeAll(minWeight, collection);
+        }
+
+        @Override
+        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> collection, long l, TimeUnit timeUnit) throws InterruptedException {
+            if (threadCount > weightedThreadPool.getActiveThreadCount()) {
+                return weightedThreadPool.invokeAll(maxWeight, collection, l, timeUnit);
+            }
+            return weightedThreadPool.invokeAll(minWeight, collection, l, timeUnit);
+        }
+
+        @Override
+        public <T> T invokeAny(Collection<? extends Callable<T>> collection) throws InterruptedException, ExecutionException {
+            if (threadCount > weightedThreadPool.getActiveThreadCount()) {
+                return weightedThreadPool.invokeAny(maxWeight, collection);
+            }
+            return weightedThreadPool.invokeAny(minWeight, collection);
+        }
+
+        @Override
+        public <T> T invokeAny(Collection<? extends Callable<T>> collection, long l, TimeUnit timeUnit) throws InterruptedException, ExecutionException, TimeoutException {
+            if (threadCount > weightedThreadPool.getActiveThreadCount()) {
+                return weightedThreadPool.invokeAny(maxWeight, collection, l, timeUnit);
+            }
+            return weightedThreadPool.invokeAny(minWeight, collection, l, timeUnit);
+        }
+
+        @Override
+        public void execute(Runnable runnable) {
+            if (threadCount > weightedThreadPool.getActiveThreadCount()) {
+                weightedThreadPool.execute(maxWeight, runnable);
+                return;
+            }
+            weightedThreadPool.execute(minWeight, runnable);
         }
     }
 }

@@ -35,7 +35,7 @@ public class WeightedThreadPoolTest {
         Executor executor = weightedThreadPool;
         executor.execute(mockRunnable);
         executor.execute(mockRunnable2);
-        weightedThreadPool.execute(mockRunnable3, weightedThreadPool.getMaxWeight());
+        weightedThreadPool.execute(weightedThreadPool.getMaxWeight(), mockRunnable3);
         Thread.sleep(50); // Wait a while
         weightedThreadPool.shutdown();
         weightedThreadPool.awaitTermination(1, TimeUnit.SECONDS);
@@ -49,17 +49,25 @@ public class WeightedThreadPoolTest {
     void executorService_submit_works() throws Exception {
         Runnable mockRunnable1 = Mockito.mock(Runnable.class);
         Runnable mockRunnable2 = Mockito.mock(Runnable.class);
+        Runnable mockRunnable3 = Mockito.mock(Runnable.class);
+        Runnable mockRunnable4 = Mockito.mock(Runnable.class);
         Callable mockCallable = Mockito.mock(Callable.class);
+        Callable mockCallable1 = Mockito.mock(Callable.class);
         ExecutorService executorService = weightedThreadPool;
         executorService.submit(mockRunnable1);
         executorService.submit(mockRunnable2, null);
         executorService.submit(mockCallable);
+        weightedThreadPool.submit(weightedThreadPool.getMaxWeight(), mockRunnable3);
+        weightedThreadPool.submit(weightedThreadPool.getMaxWeight(), mockRunnable4, null);
+        weightedThreadPool.submit(weightedThreadPool.getMaxWeight(), mockCallable1);
         Thread.sleep(50); // Wait a while
         weightedThreadPool.shutdown();
         weightedThreadPool.awaitTermination(1, TimeUnit.SECONDS);
         Mockito.verify(mockRunnable1, Mockito.times(1)).run();
         Mockito.verify(mockRunnable2, Mockito.times(1)).run();
+        Mockito.verify(mockRunnable3, Mockito.times(1)).run();
         Mockito.verify(mockCallable, Mockito.times(1)).call();
+        Mockito.verify(mockCallable1, Mockito.times(1)).call();
     }
 
     @Test
