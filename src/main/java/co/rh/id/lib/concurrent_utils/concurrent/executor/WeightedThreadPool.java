@@ -137,22 +137,71 @@ public class WeightedThreadPool implements ExecutorService {
 
     @Override
     public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> collection) throws InterruptedException {
-        return invokeMultiple(collection, null);
+        List<WeightedFutureTask<T>> weightedFutureTasks = new ArrayList<>();
+        for (Callable<T> callable : collection) {
+            weightedFutureTasks.add(new WeightedFutureTask<T>(callable));
+        }
+        return invokeMultiple(weightedFutureTasks, null);
     }
 
     @Override
     public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> collection, long l, TimeUnit timeUnit) throws InterruptedException {
-        return invokeMultiple(collection, timeUnit.toMillis(l));
+        List<WeightedFutureTask<T>> weightedFutureTasks = new ArrayList<>();
+        for (Callable<T> callable : collection) {
+            weightedFutureTasks.add(new WeightedFutureTask<T>(callable));
+        }
+        return invokeMultiple(weightedFutureTasks, timeUnit.toMillis(l));
     }
+
+    public <T> List<Future<T>> invokeAll(int weight, Collection<? extends Callable<T>> collection) throws InterruptedException {
+        List<WeightedFutureTask<T>> weightedFutureTasks = new ArrayList<>();
+        for (Callable<T> callable : collection) {
+            weightedFutureTasks.add(new WeightedFutureTask<T>(callable, weight));
+        }
+        return invokeMultiple(weightedFutureTasks, null);
+    }
+
+    public <T> List<Future<T>> invokeAll(int weight, Collection<? extends Callable<T>> collection, long l, TimeUnit timeUnit) throws InterruptedException {
+        List<WeightedFutureTask<T>> weightedFutureTasks = new ArrayList<>();
+        for (Callable<T> callable : collection) {
+            weightedFutureTasks.add(new WeightedFutureTask<T>(callable, weight));
+        }
+        return invokeMultiple(weightedFutureTasks, timeUnit.toMillis(l));
+    }
+
 
     @Override
     public <T> T invokeAny(Collection<? extends Callable<T>> collection) throws InterruptedException, ExecutionException {
-        return invokeOne(collection, null);
+        List<WeightedFutureTask<T>> weightedFutureTasks = new ArrayList<>();
+        for (Callable<T> callable : collection) {
+            weightedFutureTasks.add(new WeightedFutureTask<T>(callable));
+        }
+        return invokeOne(weightedFutureTasks, null);
     }
 
     @Override
     public <T> T invokeAny(Collection<? extends Callable<T>> collection, long l, TimeUnit timeUnit) throws InterruptedException, ExecutionException, TimeoutException {
-        return invokeOne(collection, timeUnit.toMillis(l));
+        List<WeightedFutureTask<T>> weightedFutureTasks = new ArrayList<>();
+        for (Callable<T> callable : collection) {
+            weightedFutureTasks.add(new WeightedFutureTask(callable));
+        }
+        return invokeOne(weightedFutureTasks, timeUnit.toMillis(l));
+    }
+
+    public <T> T invokeAny(int weight, Collection<? extends Callable<T>> collection) throws InterruptedException, ExecutionException {
+        List<WeightedFutureTask<T>> weightedFutureTasks = new ArrayList<>();
+        for (Callable<T> callable : collection) {
+            weightedFutureTasks.add(new WeightedFutureTask<T>(callable, weight));
+        }
+        return invokeOne(weightedFutureTasks, null);
+    }
+
+    public <T> T invokeAny(int weight, Collection<? extends Callable<T>> collection, long l, TimeUnit timeUnit) throws InterruptedException, ExecutionException, TimeoutException {
+        List<WeightedFutureTask<T>> weightedFutureTasks = new ArrayList<>();
+        for (Callable<T> callable : collection) {
+            weightedFutureTasks.add(new WeightedFutureTask(callable, weight));
+        }
+        return invokeOne(weightedFutureTasks, timeUnit.toMillis(l));
     }
 
     @Override
@@ -162,12 +211,17 @@ public class WeightedThreadPool implements ExecutorService {
         taskQueue.add(weightedFutureTask);
     }
 
-    private <T> List<Future<T>> invokeMultiple(Collection<? extends Callable<T>> collection, Long waitTime) {
+    public void execute(Runnable runnable, int weight) {
+        throwIfShutdown();
+        WeightedFutureTask<?> weightedFutureTask = new WeightedFutureTask<>(runnable, null, weight);
+        taskQueue.add(weightedFutureTask);
+    }
+
+    private <T> List<Future<T>> invokeMultiple(Collection<? extends WeightedFutureTask<T>> collection, Long waitTime) {
         throwIfShutdown();
         List<Future<T>> futureList = new ArrayList<>();
         if (!collection.isEmpty()) {
-            for (Callable<T> callable : collection) {
-                WeightedFutureTask<T> weightedFutureTask = new WeightedFutureTask<>(callable);
+            for (WeightedFutureTask<T> weightedFutureTask : collection) {
                 taskQueue.add(weightedFutureTask);
                 futureList.add(weightedFutureTask);
             }
@@ -196,12 +250,11 @@ public class WeightedThreadPool implements ExecutorService {
         return futureList;
     }
 
-    private <T> T invokeOne(Collection<? extends Callable<T>> collection, Long waitTime) throws ExecutionException, InterruptedException {
+    private <T> T invokeOne(Collection<? extends WeightedFutureTask<T>> collection, Long waitTime) throws ExecutionException, InterruptedException {
         throwIfShutdown();
         List<Future<T>> futureList = new ArrayList<>();
         if (!collection.isEmpty()) {
-            for (Callable<T> callable : collection) {
-                WeightedFutureTask<T> weightedFutureTask = new WeightedFutureTask<>(callable);
+            for (WeightedFutureTask<T> weightedFutureTask : collection) {
                 taskQueue.add(weightedFutureTask);
                 futureList.add(weightedFutureTask);
             }
