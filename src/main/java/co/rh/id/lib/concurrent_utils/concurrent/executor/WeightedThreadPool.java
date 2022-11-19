@@ -541,11 +541,15 @@ public class WeightedThreadPool implements ExecutorService {
     /**
      * Same as {@link #wrap(WeightedThreadPool, int, int, int)}
      * The difference is that if ExecutorService instance is not instance of WeightedThreadPool,
-     * then this method will not wrap the instance but return the same ExecutorService instance
+     * then this method will not wrap the instance but return the same ExecutorService instance.
+     * If ExecutorService instance is instance of wrapped ExecutorService (wrapped by this class static method),
+     * then it will use the WeightedThreadPool of the wrapped instance (automatic unwrapping).
      */
     public static ExecutorService wrap(ExecutorService executorService, int minWeight, int maxWeight, int threadCount) {
         if (executorService instanceof WeightedThreadPool) {
             return wrap((WeightedThreadPool) executorService, minWeight, maxWeight, threadCount);
+        } else if (executorService instanceof DelegateExecutorService) {
+            return wrap(((DelegateExecutorService) executorService).weightedThreadPool, minWeight, maxWeight, threadCount);
         }
         return executorService;
     }
@@ -564,11 +568,15 @@ public class WeightedThreadPool implements ExecutorService {
     /**
      * Same as {@link #wrap(WeightedThreadPool, int)}
      * The difference is that if ExecutorService instance is not instance of WeightedThreadPool,
-     * then this method will not wrap the instance but return the same ExecutorService instance
+     * then this method will not wrap the instance but return the same ExecutorService instance.
+     * If ExecutorService instance is instance of wrapped ExecutorService (wrapped by this class static method),
+     * then it will use the WeightedThreadPool of the wrapped instance (automatic unwrapping).
      */
     public static ExecutorService wrap(ExecutorService executorService, int weight) {
         if (executorService instanceof WeightedThreadPool) {
             return wrap((WeightedThreadPool) executorService, weight);
+        } else if (executorService instanceof DelegateExecutorService) {
+            return wrap(((DelegateExecutorService) executorService).weightedThreadPool, weight);
         }
         return executorService;
     }
@@ -585,10 +593,14 @@ public class WeightedThreadPool implements ExecutorService {
      * Same as {@link #wrapMaxWeight(WeightedThreadPool)}
      * The difference is that if ExecutorService instance is not instance of WeightedThreadPool,
      * then this method will not wrap the instance but return the same ExecutorService instance
+     * If ExecutorService instance is instance of wrapped ExecutorService (wrapped by this class static method),
+     * then it will use the WeightedThreadPool of the wrapped instance (automatic unwrapping).
      */
     public static ExecutorService wrapMaxWeight(ExecutorService executorService) {
         if (executorService instanceof WeightedThreadPool) {
             return wrapMaxWeight((WeightedThreadPool) executorService);
+        }else if(executorService instanceof DelegateExecutorService){
+            return wrapMaxWeight(((DelegateExecutorService) executorService).weightedThreadPool);
         }
         return executorService;
     }
